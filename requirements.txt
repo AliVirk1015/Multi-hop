@@ -1,0 +1,27 @@
+# Core
+langgraph
+langchain-core
+openai
+numpy
+pydantic
+
+# Embeddings / retrieval
+scikit-learn
+sentence-transformers
+faiss-cpu            # legacy FAISS backend (kept for reference)
+
+# Vector store (Milvus Standalone via Docker)
+pymilvus
+
+# Optional: BGE-M3 embeddings + reranker (pulls in torch — large)
+# FlagEmbedding
+
+# PDF ingestion (corpus documents are PDFs)
+pypdf
+cryptography        # required to decrypt AES-encrypted PDFs
+
+# Web UI
+streamlit
+
+# Optional: MLflow experiment tracking for agent runs + evaluation metrics
+mlflow

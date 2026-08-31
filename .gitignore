@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+.venv-linux/
+venv/
+env/
+
+# Environment variables / secrets
+.env
+
+# VS Code
+.vscode/
+
+# Qdrant local storage
+qdrant-store/
+qdrant_storage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
