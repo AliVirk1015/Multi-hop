@@ -1,14 +1,3 @@
-"""
-R4 nodes — node + edge functions for the multi-hop retriever graph.
-
-Multi-hop strategy (LLM-optional):
-  1. retrieve  : hybrid search (dense+sparse RRF) on current_query + filters, top_k.
-  2. rerank     : cross-encoder on the hop's candidates.
-  3. quality    : good -> finalize | poor -> fallback (broaden) | expand -> next hop.
-  4. expand     : optional LLM `planner` refines query+filters, OR deterministic
-                  parent-child (small-to-big) expansion via payload parent_id.
-  5. finalize   : dedupe across hops and one last rerank on the combined pool.
-"""
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
@@ -19,6 +8,18 @@ from .state import RetrievalState
 Planner = Callable[[str, List[Dict[str, Any]], int], Dict[str, Any]]
 
 
+def _clean_filters(filters):
+    """Drop null/empty filter values (LLM planners emit {"field": null}); return
+    None when nothing usable remains."""
+    if not isinstance(filters, dict):
+        return filters
+    out = {
+        k: v for k, v in filters.items()
+        if v not in (None, "") and not (isinstance(v, (list, tuple, set)) and not v)
+    }
+    return out if out else None
+
+
 def make_retrieval_nodes(
     store,
     reranker,
@@ -27,6 +28,9 @@ def make_retrieval_nodes(
     top_k: int = 20,
     rerank_top_k: int = 10,
     confidence_threshold: float = 0.4,
+    kg=None,                 # KnowledgeGraphClient (Neo4j) — optional graph expansion
+    kg_hops: int = 1,
+    kg_max_nodes: int = 12,
 ):
     def _record(state: RetrievalState, items: List[dict]) -> None:
         seen = {e["chunk_id"] for e in state["evidence_pool"] if e.get("chunk_id")}
@@ -105,11 +109,10 @@ def make_retrieval_nodes(
             try:
                 plan = planner(state["original_query"], state["evidence_pool"], state["current_hop"])
                 state["next_query"] = str(plan.get("next_query") or state["original_query"])
-                state["next_filters"] = plan.get("filters")
+                state["next_filters"] = _clean_filters(plan.get("filters"))
                 state["planner_note"] = str(plan.get("note", ""))
                 state["current_query"] = state["next_query"]
-                if state["next_filters"] is not None:
-                    state["filters"] = state["next_filters"]
+                state["filters"] = state["next_filters"] if state["next_filters"] else None
                 state["last_expansion_added"] = True
                 return state
             except Exception as exc:
@@ -136,6 +139,68 @@ def make_retrieval_nodes(
         state["filters"] = None
         return state
 
+    def kg_expand(state: RetrievalState) -> RetrievalState:
+        """Expand accumulated evidence via the knowledge graph (Neo4j).
+
+        Maps pool chunk_ids -> Sections (BELONGS_TO), walks REFERENCES (kg_hops)
+        to discover related provisions, fetches their full text from Qdrant, and
+        records graph-only findings (text-less sections + CITES judgments) into
+        state['kg_evidence'] (tagged _kg). Never raises: on any KG failure the
+        graph continues exactly as before.
+        """
+        state.setdefault("kg_evidence", [])
+        if kg is None:
+            return state
+        ordered = [e.get("chunk_id") for e in state.get("hop_evidence", []) if e.get("chunk_id")]
+        for e in state.get("evidence_pool", []):
+            cid = e.get("chunk_id")
+            if cid and cid not in ordered:
+                ordered.append(cid)
+        ordered = ordered[:24]
+        if not ordered:
+            return state
+        try:
+            res = kg.expand_evidence(ordered, hops=kg_hops, max_nodes=kg_max_nodes)
+        except Exception as exc:
+            state["planner_note"] = (state.get("planner_note") or "") + f" | kg error: {exc}"
+            return state
+
+        added_pool: List[dict] = []
+        seen_kg: set = set()
+        for sec in list(res.get("seed_sections", [])) + list(res.get("sections", [])):
+            cid = sec.get("chunk_id")
+            full = None
+            if cid:
+                try:
+                    full = store.get_by_chunk_id(str(cid))
+                except Exception:
+                    full = None
+            if full:
+                full = dict(full)
+                full["_kg"] = True
+                full["_kg_source"] = "REFERENCES"
+                full["_hop"] = state["current_hop"]
+                added_pool.append(full)
+            else:
+                krec = dict(sec)
+                if krec.get("kg_id") in seen_kg:
+                    continue
+                if krec.get("kg_id"):
+                    seen_kg.add(krec["kg_id"])
+                krec["_kg"] = True
+                krec["_kg_source"] = "REFERENCES"
+                state["kg_evidence"].append(krec)
+        _record(state, added_pool)  # dedupes by chunk_id; only full-text records enter the pool
+
+        for j in res.get("judgments", []):
+            jrec = dict(j)
+            jrec["_kg"] = True
+            jrec["_kg_source"] = "CITES"
+            state["kg_evidence"].append(jrec)
+
+        state["last_expansion_added"] = bool(added_pool) or bool(res.get("judgments"))
+        return state
+
     def fallback_retrieve(state: RetrievalState) -> RetrievalState:
         # Drop filters, re-run on the original query -> broader recall.
         state["current_query"] = state["original_query"]
@@ -156,6 +221,7 @@ def make_retrieval_nodes(
         "retrieve": retrieve,
         "rerank": rerank,
         "expand": expand,
+        "kg_expand": kg_expand,
         "fallback_retrieve": fallback_retrieve,
         "finalize": finalize,
         "route_decision": route_decision,

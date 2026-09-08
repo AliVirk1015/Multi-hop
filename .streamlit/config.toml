@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# Streamlit configuration — professional light theme for the legal research UI.
+# ---------------------------------------------------------------------------
+
+[theme]
+base = "light"
+
+# Refined, restrained accent (used for links, focus rings, interactive accents).
+primaryColor = "#1f5ae6"
+
+# Surface colours — near-white canvas with a barely-there secondary surface.
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f7f9"
+
+# Text — soft near-black for comfortable contrast.
+textColor = "#1f2430"
+
+# System font stack gives a modern, native feel on every OS.
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Do not attempt to open a browser tab on `streamlit run` — useful in demos/CI.
+headless = true
+
+# Disable source watching: the RAG stack imports heavy ML modules (transformers,
+# FlagEmbedding) whose lazy submodule imports make the file watcher very noisy.
+# Restart `streamlit run` after code changes instead.
+fileWatcherType = "none"
+
+[client]
+# Minimal top toolbar (hide the "Deploy"/"Manage app" controls on hover).
+toolbarMode = "minimal"

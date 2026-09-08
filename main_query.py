@@ -1,26 +1,4 @@
-"""
-R5 entrypoint — ask a question, get a proper LLM-shaped answer.
-
-Usage:
-  .venv\\Scripts\\python.exe main_query.py --query "your question"
-  .venv\\Scripts\\python.exe main_query.py                    (interactive loop)
-  .venv\\Scripts\\python.exe main_query.py --query "..." --no-llm
-  .venv\\Scripts\\python.exe main_query.py --query "..." --multi-hop
-
-Fast path (default):
-  query -> BGE-M3 encode (dense+sparse) -> hybrid search (top_k=20)
-        -> cross-encoder rerank (rerank_k=6) -> LLM structured answer
-
-Multi-hop path (--multi-hop):
-  query -> LangGraph multi-hop retriever (up to max_hops) -> LLM answer
-
-LLM (OpenAI-compatible) resolves the final answer:
-  - explicit gateway: LLM_BASE_URL / LLM_API_KEY / LLM_MODEL in .env, or
-  - OpenAI directly:  OPENAI_API_KEY (default model gpt-4o-mini)
-Without any LLM, prints top evidence + how to enable the answer.
-"""
 from __future__ import annotations
-
 import argparse
 import sys
 import time
@@ -35,10 +13,14 @@ from retrieval.qdrant_store import QdrantHybridStore  # noqa: E402
 from retrieval.reranker import CrossEncoderReranker  # noqa: E402
 from retrieval_graph.graph import build_retrieval_graph  # noqa: E402
 from retrieval_graph.state import fresh_state  # noqa: E402
+from Graph.query import KnowledgeGraphClient  # noqa: E402
 
 DEFAULT_TOP_K = 20          # hybrid candidates fetched in the fast path
 DEFAULT_RERANK_K = 6        # reranked evidence fed to the LLM
-DEFAULT_MAX_HOPS = 2        # multi-hop graph depth
+# Lean default = 1 hop: with a single hop the graph ends at "hop_limit" and the
+# optional LLM hop-planner is never called (biggest latency saver). Raise to 2
+# (or more) to re-enable full multi-hop/planner behaviour for deep demos.
+DEFAULT_MAX_HOPS = 1        # multi-hop graph depth
 EVIDENCE_PRINT = 8
 
 # ----------------------------------------------------------------------
@@ -52,22 +34,30 @@ _reranker: Any = None
 _graph: Any = None
 _planner: Any = None
 _graph_max_hops = 0
+_kg: Any = None      # lazy KnowledgeGraphClient (None if Neo4j unavailable)
 
 
 def _get_resources(multi_hop: bool, max_hops: int = DEFAULT_MAX_HOPS):
-    """Lazily build (and cache) encoder / store / reranker / graph."""
-    global _encoder, _store, _reranker, _graph, _planner, _graph_max_hops
+    """Lazily build (and cache) encoder / store / reranker / graph / kg."""
+    global _encoder, _store, _reranker, _graph, _planner, _graph_max_hops, _kg
     if _encoder is None:
         _encoder = BgeM3QueryEncoder()
     if _store is None:
         _store = QdrantHybridStore(query_encoder=_encoder)
     if _reranker is None:
         _reranker = CrossEncoderReranker()
+    if _kg is None:
+        try:
+            _kg = KnowledgeGraphClient()
+        except Exception as exc:
+            print(f"[main_query] Neo4j KG unavailable ({exc}); continuing without graph expansion")
+            _kg = None
     if multi_hop and (_graph is None or _graph_max_hops != max_hops):
         if _planner is None:
             _planner = make_llm_planner() if llm_client.llm_reachable() else None
         _graph = build_retrieval_graph(
-            _store, _encoder, _reranker, planner=_planner, max_hops=max_hops
+            _store, _encoder, _reranker, planner=_planner, max_hops=max_hops,
+            kg=_kg, kg_hops=1, kg_max_nodes=12,
         )
         _graph_max_hops = max_hops
     return _encoder, _store, _reranker, _graph
@@ -120,7 +110,7 @@ def synthesize_answer(evidence: list, query: str) -> str:
             "consulting a licensed lawyer. Respond in the same language as the question."
         ),
         user=f"Question: {query}\n\nRelevant legal provisions:\n{docs}",
-        max_tokens=1500,
+        max_tokens=1200,
     )
 
 

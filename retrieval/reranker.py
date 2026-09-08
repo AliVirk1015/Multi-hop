@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import os
 
-# Windows: force HF Hub to copy instead of symlink (WinError 1314 fix).
+
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
-from typing import Optional  # noqa: E402
+from typing import Optional  
 
 DEFAULT_RERANKER = os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
 FALLBACK_RERANKER = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-# RERANKER_BACKEND: "bge" (accurate, heavy) | "fast" (tiny, quick) | "auto"
-# auto = bge on CUDA, fast cross-encoder on CPU (bge-reranker-v2-m3 is ~3.5 s/pair on CPU).
+
 RERANKER_BACKEND = os.getenv("RERANKER_BACKEND", "auto").lower()
 
 
@@ -42,8 +41,7 @@ class CrossEncoderReranker:
             backend = "bge" if torch.cuda.is_available() else "fast"
 
         if backend == "fast":
-            # Small cross-encoder — much faster on CPU. Quality is lower than
-            # bge-reranker-v2-m3, but the LLM does the final synthesis anyway.
+
             from sentence_transformers import CrossEncoder
 
             self.model = CrossEncoder(FALLBACK_RERANKER, max_length=512)
@@ -58,7 +56,7 @@ class CrossEncoderReranker:
                 kwargs["devices"] = device
             self.model = FlagReranker(model_name, **kwargs)
             self._backend = "FlagReranker"
-        except Exception as exc:  # pragma: no cover - defensive fallback
+        except Exception as exc:  
             print(
                 f"[reranker] FlagReranker init failed ({exc}); "
                 f"falling back to {FALLBACK_RERANKER}"
@@ -68,7 +66,7 @@ class CrossEncoderReranker:
             self.model = CrossEncoder(FALLBACK_RERANKER, max_length=512)
             self._backend = "CrossEncoder"
 
-    # ------------------------------------------------------------------
+
     def score(self, query: str, texts: list[str]) -> list[float]:
         """Relevance score for each (query, text) pair."""
         if not texts:
@@ -100,12 +98,7 @@ class CrossEncoderReranker:
         evidence: list[dict],
         top_k: Optional[int] = None,
     ) -> list[dict]:
-        """
-        Re-sort evidence by cross-encoder relevance (descending).
 
-        Returns shallow-copied records with a "rerank_score" field; input
-        records are not mutated.
-        """
         if not evidence:
             return []
         texts = [e.get("text") or "" for e in evidence]

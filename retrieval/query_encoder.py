@@ -1,25 +1,4 @@
-"""
-R2 — BGE-M3 query encoder.
 
-Wraps `BGEM3FlagModel("BAAI/bge-m3")` so a single call emits BOTH vectors the
-`legal_hybrid` collection stores:
-  - dense  : normalized 1024-d vector (the unnamed default vector)
-  - sparse : `lexical_weights` (BGE-M3 learned/SPLADE-style) -> SparseVector
-
-Because the stored embeddings were produced by the SAME model, this guarantees
-the query lives in the exact same vector space as the index (no vocabulary to
-persist — the token space is BGE-M3's own tokenizer).
-
-The encoder is a callable:  encoder("some query") -> {"dense": [...],
-"sparse": SparseVector}, so it can be injected directly into
-`QdrantHybridStore(query_encoder=encoder)`.
-
-First use downloads ~2.3 GB of model weights into the HuggingFace cache.
-
-Windows note: the HF Hub cache defaults to symlinks, which fail with
-WinError 1314 unless Developer Mode/admin is enabled. We force the copy
-fallback via HF_HUB_DISABLE_SYMLINKS=1 BEFORE huggingface_hub is imported.
-"""
 from __future__ import annotations
 
 import os

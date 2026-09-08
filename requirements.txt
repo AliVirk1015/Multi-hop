@@ -13,6 +13,9 @@ faiss-cpu            # legacy FAISS backend (kept for reference)
 # Vector store (Milvus Standalone via Docker)
 pymilvus
 
+# Knowledge graph (Graph/neo4j_store.py — loads the assembled graph into Neo4j)
+neo4j
+
 # Optional: BGE-M3 embeddings + reranker (pulls in torch — large)
 # FlagEmbedding
 
@@ -25,3 +28,7 @@ streamlit
 
 # Optional: MLflow experiment tracking for agent runs + evaluation metrics
 mlflow
+
+# API server (api.py — FastAPI wrapper around the multi-hop Graph-RAG)
+fastapi
+uvicorn

@@ -9,27 +9,16 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 
-# ============================================================
-# Configuration
-# ============================================================
 
 DEFAULT_MODEL = "BAAI/bge-m3"
 DEFAULT_INPUT = "chunks.json"
 DEFAULT_OUTPUT = "embedded_chunks.json"
 
 
-# ============================================================
-# Embedder
-# ============================================================
+
 
 class LegalEmbedder:
-    """
-    Generate embeddings for chunks produced by chunking.py.
 
-    IMPORTANT:
-    The original chunk structure is preserved exactly.
-    This class only adds the "embedding" field.
-    """
 
     def __init__(
         self,
@@ -47,8 +36,7 @@ class LegalEmbedder:
             device=device,
         )
 
-        # sentence-transformers >= 4.x renamed this method to
-        # get_embedding_dimension; keep a fallback for older versions.
+
         try:
             dimension = self.model.get_embedding_dimension()
         except AttributeError:
@@ -56,9 +44,7 @@ class LegalEmbedder:
 
         print(f"Embedding dimension: {dimension}")
 
-    # --------------------------------------------------------
-    # Create embeddings
-    # --------------------------------------------------------
+
 
     def embed_chunks(
         self,
@@ -77,12 +63,9 @@ class LegalEmbedder:
         if not chunks:
             return []
 
-        # ----------------------------------------------------
-        # Extract ONLY the text that should be embedded
-        # ----------------------------------------------------
 
         texts = []
-        valid_indices = []  # chunk indices that carry embeddable text
+        valid_indices = []  
 
         for i, chunk in enumerate(chunks):
 
@@ -107,10 +90,7 @@ class LegalEmbedder:
 
         print(f"Creating embeddings for {len(texts)} chunks...")
 
-        # ----------------------------------------------------
-        # Generate embeddings
-        # ----------------------------------------------------
-
+ 
         embeddings = self.model.encode(
             texts,
             batch_size=self.batch_size,
@@ -119,20 +99,15 @@ class LegalEmbedder:
             convert_to_numpy=True,
         )
 
-        # ----------------------------------------------------
-        # Add embedding to the ORIGINAL chunk
-        # ----------------------------------------------------
-
         embedded_chunks = []
 
         for idx, embedding in zip(valid_indices, embeddings):
 
             chunk = chunks[idx]
 
-            # Copy the complete original chunk
+          
             embedded_chunk = dict(chunk)
 
-            # Add ONLY the embedding
             embedded_chunk["embedding"] = (
                 embedding.astype(np.float32).tolist()
             )
@@ -148,9 +123,7 @@ class LegalEmbedder:
         return embedded_chunks
 
 
-# ============================================================
-# Load chunks
-# ============================================================
+
 
 def load_chunks(
     input_path: str | Path,
@@ -181,9 +154,6 @@ def load_chunks(
     return chunks
 
 
-# ============================================================
-# Save embedded chunks
-# ============================================================
 
 def save_embedded_chunks(
     chunks: list[dict[str, Any]],
@@ -216,9 +186,7 @@ def save_embedded_chunks(
     print(output_path)
 
 
-# ============================================================
-# Main
-# ============================================================
+
 
 def main() -> None:
 
@@ -262,17 +230,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # ========================================================
-    # 1. Load chunks
-    # ========================================================
+  
 
     chunks = load_chunks(args.input)
 
     print(f"Loaded {len(chunks)} chunks.")
 
-    # ========================================================
-    # 2. Load embedding model
-    # ========================================================
+
 
     embedder = LegalEmbedder(
         model_name=args.model,
@@ -280,15 +244,11 @@ def main() -> None:
         batch_size=args.batch_size,
     )
 
-    # ========================================================
-    # 3. Generate embeddings
-    # ========================================================
+
 
     embedded_chunks = embedder.embed_chunks(chunks)
 
-    # ========================================================
-    # 4. Save
-    # ========================================================
+ 
 
     save_embedded_chunks(
         embedded_chunks,

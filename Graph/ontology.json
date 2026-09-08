@@ -1,0 +1,476 @@
+{
+  "nodes": [
+    {
+      "label": "Act",
+      "key": [
+        "name"
+      ],
+      "props": [
+        {
+          "name": "name",
+          "dtype": "str",
+          "source": "canonical_act_name(doc)",
+          "required": true
+        },
+        {
+          "name": "doc",
+          "dtype": "str",
+          "source": "doc",
+          "required": false
+        },
+        {
+          "name": "doc_type",
+          "dtype": "str",
+          "source": "doc_type",
+          "required": false
+        }
+      ],
+      "tier": "0",
+      "description": "A statute / rules / amendment / order instrument (one per source PDF).",
+      "filter_rule": "records from chunks.json only (doc_type in statute|rules|amendment|order)",
+      "source_file": "chunks"
+    },
+    {
+      "label": "Part",
+      "key": [
+        "act",
+        "name"
+      ],
+      "props": [
+        {
+          "name": "act",
+          "dtype": "str",
+          "source": "canonical_act_name(doc)",
+          "required": true
+        },
+        {
+          "name": "name",
+          "dtype": "str",
+          "source": "part",
+          "required": true
+        }
+      ],
+      "tier": "0",
+      "description": "A Part within an Act (Roman numeral, e.g. I..IX). Only present when part != null.",
+      "filter_rule": "part field not null (41% coverage in chunks.json)",
+      "source_file": "chunks"
+    },
+    {
+      "label": "Chapter",
+      "key": [
+        "act",
+        "name"
+      ],
+      "props": [
+        {
+          "name": "act",
+          "dtype": "str",
+          "source": "canonical_act_name(doc)",
+          "required": true
+        },
+        {
+          "name": "name",
+          "dtype": "str",
+          "source": "chapter",
+          "required": true
+        }
+      ],
+      "tier": "0",
+      "description": "A Chapter within an Act (56 distinct chapter ids).",
+      "filter_rule": "chapter field not null (87% coverage in chunks.json)",
+      "source_file": "chunks"
+    },
+    {
+      "label": "Section",
+      "key": [
+        "act",
+        "section_no"
+      ],
+      "props": [
+        {
+          "name": "act",
+          "dtype": "str",
+          "source": "canonical_act_name(doc)",
+          "required": true
+        },
+        {
+          "name": "section_no",
+          "dtype": "str",
+          "source": "section_no",
+          "required": true
+        },
+        {
+          "name": "title",
+          "dtype": "str",
+          "source": "section_title",
+          "required": false
+        },
+        {
+          "name": "text",
+          "dtype": "str",
+          "source": "text",
+          "required": false
+        },
+        {
+          "name": "tokens",
+          "dtype": "int",
+          "source": "tokens",
+          "required": false
+        },
+        {
+          "name": "chunk_id",
+          "dtype": "str",
+          "source": "chunk_id",
+          "required": false
+        }
+      ],
+      "tier": "0",
+      "description": "A provision/section of an act. Key (act, section_no) verified UNIQUE.",
+      "filter_rule": "level == 'section' AND source is chunks.json (NEVER judgement chunks — their section_no is a paragraph counter)",
+      "source_file": "chunks"
+    },
+    {
+      "label": "Chunk",
+      "key": [
+        "chunk_id"
+      ],
+      "props": [
+        {
+          "name": "chunk_id",
+          "dtype": "str",
+          "source": "chunk_id",
+          "required": true
+        },
+        {
+          "name": "doc",
+          "dtype": "str",
+          "source": "doc",
+          "required": false
+        },
+        {
+          "name": "doc_type",
+          "dtype": "str",
+          "source": "doc_type",
+          "required": false
+        },
+        {
+          "name": "level",
+          "dtype": "str",
+          "source": "level",
+          "required": false
+        },
+        {
+          "name": "section_no",
+          "dtype": "str",
+          "source": "section_no",
+          "required": false
+        },
+        {
+          "name": "parent_id",
+          "dtype": "str",
+          "source": "parent_id",
+          "required": false
+        },
+        {
+          "name": "is_parent",
+          "dtype": "bool",
+          "source": "is_parent",
+          "required": false
+        },
+        {
+          "name": "tokens",
+          "dtype": "int",
+          "source": "tokens",
+          "required": false
+        },
+        {
+          "name": "text",
+          "dtype": "str",
+          "source": "text",
+          "required": false
+        },
+        {
+          "name": "collection",
+          "dtype": "str",
+          "source": "const:statutes",
+          "required": false
+        }
+      ],
+      "tier": "0",
+      "description": "Every source chunk. Provides the chunk_id join back to Qdrant vectors.",
+      "filter_rule": "all records from both files; chunk_id is unique per file and formats differ",
+      "source_file": "both"
+    },
+    {
+      "label": "Judgment",
+      "key": [
+        "case_no"
+      ],
+      "props": [
+        {
+          "name": "case_no",
+          "dtype": "str",
+          "source": "case_no(meta.context)",
+          "required": true
+        },
+        {
+          "name": "doc",
+          "dtype": "str",
+          "source": "doc",
+          "required": false
+        },
+        {
+          "name": "citation",
+          "dtype": "str",
+          "source": "citation",
+          "required": false
+        },
+        {
+          "name": "court",
+          "dtype": "str",
+          "source": "court(meta.context)",
+          "required": false
+        },
+        {
+          "name": "parties",
+          "dtype": "str",
+          "source": "parties(meta.context)",
+          "required": false
+        },
+        {
+          "name": "date",
+          "dtype": "str",
+          "source": "date",
+          "required": false
+        },
+        {
+          "name": "outcome",
+          "dtype": "str",
+          "source": "outcome(meta)",
+          "required": false
+        }
+      ],
+      "tier": "0",
+      "description": "One node per judgment document (82 docs). case_no/court/parties/outcome are free via the case-header + disposition metadata (Tier 0).",
+      "filter_rule": "records from judgement_chunks.json only; identify by doc basename",
+      "source_file": "judgements"
+    },
+    {
+      "label": "Court",
+      "key": [
+        "name"
+      ],
+      "props": [
+        {
+          "name": "name",
+          "dtype": "str",
+          "source": "name",
+          "required": true
+        }
+      ],
+      "tier": "2",
+      "description": "Court that decided a case (e.g. Lahore High Court). Extracted by LLM from preamble.",
+      "filter_rule": "none — LLM-derived, referenced by Judgment.DECIDED_BY",
+      "source_file": "judgements"
+    },
+    {
+      "label": "Party",
+      "key": [
+        "name"
+      ],
+      "props": [
+        {
+          "name": "name",
+          "dtype": "str",
+          "source": "name",
+          "required": true
+        },
+        {
+          "name": "role",
+          "dtype": "str",
+          "source": "role",
+          "required": false
+        }
+      ],
+      "tier": "2",
+      "description": "A litigant (petitioner / respondent / complainant). LLM-extracted, canonicalized.",
+      "filter_rule": "none — LLM-derived, referenced by Judgment.INVOLVES",
+      "source_file": "judgements"
+    },
+    {
+      "label": "Offence",
+      "key": [
+        "name"
+      ],
+      "props": [
+        {
+          "name": "name",
+          "dtype": "str",
+          "source": "name",
+          "required": true
+        }
+      ],
+      "tier": "2",
+      "description": "An offence mentioned/charged in a judgment (e.g. fraud, hacking). LLM-extracted.",
+      "filter_rule": "none — LLM-derived, referenced by Judgment.CONCERNS",
+      "source_file": "judgements"
+    }
+  ],
+  "relationships": [
+    {
+      "type": "CONTAINS",
+      "description": "Structural containment in the statute hierarchy (Act→Part/Chapter→Section).",
+      "from_labels": [
+        "Act",
+        "Part",
+        "Chapter"
+      ],
+      "to_labels": [
+        "Part",
+        "Chapter",
+        "Section"
+      ],
+      "tier": "0",
+      "cardinality": "1:N",
+      "source": "part/chapter fields + level==section on chunks.json records",
+      "filter_rule": ""
+    },
+    {
+      "type": "PARENT_OF",
+      "description": "Small-to-big chunk chain (parent chunk → child chunk) via parent_id.",
+      "from_labels": [
+        "Chunk"
+      ],
+      "to_labels": [
+        "Chunk"
+      ],
+      "tier": "0",
+      "cardinality": "1:N",
+      "source": "parent_id field (96 parents / 274 children in chunks.json; 61/163 in judgements)",
+      "filter_rule": ""
+    },
+    {
+      "type": "BELONGS_TO",
+      "description": "A chunk belongs to its logical Section (uses section_no, Tier 0).",
+      "from_labels": [
+        "Chunk"
+      ],
+      "to_labels": [
+        "Section"
+      ],
+      "tier": "0",
+      "cardinality": "N:1",
+      "source": "chunk.section_no on statute chunks (never judgment chunks)",
+      "filter_rule": ""
+    },
+    {
+      "type": "AMENDED_BY",
+      "description": "A section is amended by an amending Act.",
+      "from_labels": [
+        "Section"
+      ],
+      "to_labels": [
+        "Act"
+      ],
+      "tier": "0",
+      "cardinality": "N:1",
+      "source": "meta.amends_section on doc_type=amendment chunks (4/32 present); fallback Tier 1 regex on the remaining 28",
+      "filter_rule": "only for doc_type=amendment docs (e.g. Peca-Act-2025 AMD)"
+    },
+    {
+      "type": "REFERENCES",
+      "description": "A section explicitly references another section/act ('section N of <Act>', 'this Act').",
+      "from_labels": [
+        "Section"
+      ],
+      "to_labels": [
+        "Section",
+        "Act"
+      ],
+      "tier": "1",
+      "cardinality": "M:N",
+      "source": "regex cross-reference extraction on section text (the old Graph-Lite logic, rebuilt here)",
+      "filter_rule": ""
+    },
+    {
+      "type": "CITES",
+      "description": "A judgment cites / relies on a statutory section.",
+      "from_labels": [
+        "Judgment"
+      ],
+      "to_labels": [
+        "Section"
+      ],
+      "tier": "2",
+      "cardinality": "M:N",
+      "source": "LLM extraction from judgment paragraphs (structured JSON)",
+      "filter_rule": ""
+    },
+    {
+      "type": "DECIDED_BY",
+      "description": "A judgment was decided by a court.",
+      "from_labels": [
+        "Judgment"
+      ],
+      "to_labels": [
+        "Court"
+      ],
+      "tier": "2",
+      "cardinality": "N:1",
+      "source": "LLM extraction from preamble / meta.context",
+      "filter_rule": ""
+    },
+    {
+      "type": "INVOLVES",
+      "description": "A judgment involves a party (petitioner/respondent/complainant).",
+      "from_labels": [
+        "Judgment"
+      ],
+      "to_labels": [
+        "Party"
+      ],
+      "tier": "2",
+      "cardinality": "N:M",
+      "source": "LLM extraction from preamble / meta.context",
+      "filter_rule": ""
+    },
+    {
+      "type": "CONCERNS",
+      "description": "A judgment concerns an offence.",
+      "from_labels": [
+        "Judgment"
+      ],
+      "to_labels": [
+        "Offence"
+      ],
+      "tier": "2",
+      "cardinality": "N:M",
+      "source": "LLM extraction from judgment text",
+      "filter_rule": ""
+    }
+  ],
+  "act_aliases": {
+    "THE CODE OF CRIMINAL PROCEDURE, 1898.pdf": "Code of Criminal Procedure 1898",
+    "Pakistan Penal Code.pdf": "Pakistan Penal Code 1860",
+    "THE QANUN-E-SHAHADAT, 1984.pdf": "Qanun-e-Shahadat Order 1984",
+    "Anti Money Laundring 2010.pdf": "Anti-Money Laundering Act 2010",
+    "PECA 2016.pdf": "Prevention of Electronic Crimes Act 2016",
+    "PAKISTAN TELECOMMUNICATION (Reorg) 1996.pdf": "Pakistan Telecommunication (Re-organization) Act 1996",
+    "PAYMENT SYSTEMS AND ELECTRONIC FUND.pdf": "Payment Systems and Electronic Fund Transfers Act 2007",
+    "PECA ru2018-ocr (1).pdf": "Prevention of Electronic Crimes Investigation Rules 2018",
+    "Electronic Transaction Ordinance 2002.pdf": "Electronic Transactions Ordinance 2002",
+    "Investigation of Fair Trail Act 2013.pdf": "Investigation for Fair Trial Act 2013",
+    "Peca-Act-2025 AMD.pdf": "Prevention of Electronic Crimes (Amendment) Act 2025",
+    "CERT 2023.pdf": "CERT Rules 2023",
+    "RemovalBlockingofUnlawfulOnlineContentRules2021 (1)UPDATED.pdf": "Removal and Blocking of Unlawful Online Content Rules 2021",
+    "Pakistan Consumer Protection Regulation 2009 UPDATED.pdf": "Consumer Protection Regulations 2009",
+    "ncciaorder (1)UPDATED.pdf": "NCIIA Order"
+  },
+  "notes": {
+    "section_key": "(act, section_no) — verified unique in chunks.json",
+    "never_key_on_chunk_id_integer": "chunk_id number is a sequential index, not the real section; 95.6% of section chunks mismatch section_no",
+    "judgment_metadata_free": "case_no/court/parties/outcome are Tier 0 via case-header + meta.disposition; citation/date and enrichment are Tier 2 LLM",
+    "amendment_gap": "only 4/32 amendment chunks carry meta.amends_section; 28 need Tier 1 regex",
+    "judgment_noise_filter": "23 mislabeled judgement chunks (doc_type/level) must be filtered from Section building"
+  }
+}

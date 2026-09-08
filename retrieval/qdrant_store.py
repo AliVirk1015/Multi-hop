@@ -277,6 +277,9 @@ class QdrantHybridStore:
 
         must = []
         for key, value in filters.items():
+            # ignore null / empty values (LLM planners often emit {"field": null})
+            if value is None or value == "" or (isinstance(value, (list, tuple, set)) and not value):
+                continue
             if isinstance(value, (list, tuple, set)):
                 must.append(
                     qm.FieldCondition(key=str(key), match=qm.MatchAny(any=[str(v) for v in value]))

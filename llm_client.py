@@ -1,28 +1,4 @@
-"""
-Minimal OpenAI-compatible LLM client for the RAG pipeline.
-
-Credentials come from `.env` (no python-dotenv dependency):
-    LLM_BASE_URL   e.g. http://host:7100/v1, https://openrouter.ai/api/v1
-    LLM_API_KEY    (may be "not-needed" for local gateways)
-    LLM_MODEL      e.g. gpt-oss-20b / google/gemma-4-31b-it:free
-    LLM_TIMEOUT    seconds
-
-If no LLM_BASE_URL is set but OPENAI_API_KEY is present, the client falls back
-to OpenAI's API (https://api.openai.com/v1) with model `OPENAI_MODEL` or
-gpt-4o-mini — so the pipeline works out of the box with just an OpenAI key.
-
-Transient 429/5xx responses (common on free tiers such as OpenRouter `:free`)
-are retried with exponential backoff + Retry-After support.
-
-`llm_reachable()` only checks that base_url + model are configured; it does NOT
-ping the server. Actual call failures are raised and handled by callers
-(planner falls back to deterministic; main_query prints a note).
-
-The retrieval pipeline does NOT require the LLM to run — it is used only for
-optional multi-hop planning and answer synthesis.
-"""
 from __future__ import annotations
-
 import json
 import os
 import time
@@ -33,7 +9,9 @@ import httpx
 DOTENV_LOADED = False
 
 # Retry policy for transient gateway errors (rate limits, 5xx).
-LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "5"))
+# Default 3 (was 5): keeps resilience to transient 429/5xx while capping the
+# worst-case silent backoff (~10 s) that free-tier gateways can add per query.
+LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
 LLM_BACKOFF_BASE = float(os.getenv("LLM_BACKOFF_BASE", "1.5"))
 
 

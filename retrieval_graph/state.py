@@ -1,10 +1,3 @@
-"""
-RetrievalState — per-question working memory for the multi-hop retriever.
-
-Single scope: everything resets per new question. Evidence accumulates across
-hops (deduped by chunk_id in `evidence_pool`); `final_evidence` is the
-reranked output consumed by callers (LLM synthesize / Agent adapter).
-"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, TypedDict
@@ -34,6 +27,9 @@ class RetrievalState(TypedDict):
     next_filters: Optional[Dict[str, Any]]
     planner_note: str
 
+    # ---- knowledge-graph expansion (Phase 2) ----
+    kg_evidence: List[Dict[str, Any]]   # graph-discovered sections/judgments (_kg tagged)
+
     # ---- output ----
     final_evidence: List[Dict[str, Any]]
 
@@ -60,4 +56,5 @@ def fresh_state(
         next_filters=None,
         planner_note="",
         final_evidence=[],
+        kg_evidence=[],
     )

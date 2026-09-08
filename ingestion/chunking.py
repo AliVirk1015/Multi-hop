@@ -1,33 +1,3 @@
-"""
-chunking.py — PDF extraction + structure-aware hierarchical chunking
-=====================================================================
-
-Target corpus: Pakistan legal PDFs in `data/` (statutes, gazette rules,
-amendment acts, a court order).
-
-Design
-------
-One pipeline, multiple *document profiles*, selected by a detection ladder,
-with a graceful paragraph fallback so no document ever fails:
-
-    statute    : Part -> Chapter -> Section -> (sub-section/clause)
-    rules      : Rule N / numbered item          (S.R.O. notifications)
-    amendment  : "Amendment of section N of Act X"
-    order      : single-document chunk           (e.g. IHC order sheet)
-    paragraph  : layout/paragraph fallback       (OCR-garbled PDFs)
-
-Every profile feeds a single normalisation pass ("parent-child / small-to-big"):
-
-    1. skip the CONTENTS table (it duplicates every heading)
-    2. merge tiny heading stubs (< min_chunk_tokens) into a neighbour
-    3. split giant sections (> section_split_threshold_tokens) into leaf
-       children with paragraph-level overlap
-    4. emit the full section as a *parent* chunk (small-to-big expansion),
-       children carry `parent_id`
-
-Dependencies: pypdf (extraction). Everything else is stdlib.
-"""
-
 from __future__ import annotations
 
 import json
@@ -54,11 +24,11 @@ class ChunkingConfig:
     tiny stubs are merged, giants are split.
     """
 
-    min_chunk_tokens: int = 20          # below this a section is a "stub" -> merge
-    section_split_threshold_tokens: int = 500   # above this -> split into leaves
-    max_chunk_tokens: int = 600         # leaf chunk ceiling
-    parent_max_tokens: int = 2000       # cap for the small-to-big parent chunk
-    min_structure_coverage: float = 0.30  # if parsed blocks cover <30% of text -> fallback
+    min_chunk_tokens: int = 20          
+    section_split_threshold_tokens: int = 500   
+    max_chunk_tokens: int = 600         
+    parent_max_tokens: int = 2000       
+    min_structure_coverage: float = 0.30  
 
 
 
@@ -70,7 +40,7 @@ class ExtractedDocument:
     title: str
     pages: List[str]
     text: str
-    doc_type: str          # statute | rules | amendment | order | paragraph
+    doc_type: str         
     needs_ocr: bool
 
 
@@ -126,31 +96,25 @@ class Chunk:
         }
 
 
-# ---------------------------------------------------------------------------
-# Heading patterns (line-anchored)
-# ---------------------------------------------------------------------------
 
-# NOTE: PART/CHAPTER are also used with `.search()` on the full text for
-# doc-type detection, hence re.MULTILINE so ^ / $ match per line.
+
 _PART_RE = re.compile(r"^\s*PART\s+([IVXLC\d]+)\s*$", re.IGNORECASE | re.MULTILINE)
 _CHAPTER_RE = re.compile(
     r"^\s*CHAPTER\s+([IVXLC\d]+(?:-?[A-Z])?)\s*$", re.IGNORECASE | re.MULTILINE
 )
-# "12. Short title and commencement."  — num may carry a letter: 7A, 22A, 2A.
-# Also tolerate amendment footnote markers that prefix the number:
-#   "1[2. Definitions.— In this Act ..."  (common in Pakistani statutes)
+
 _SECTION_RE = re.compile(
     r"^\s*(?:\d+\s*\[)?\s*(?P<num>\d{1,3}[A-Z]?)\s*\.\s+(?P<title>[A-Z][^\n]{2,150})\s*$"
 )
-# loose section-heading scan (for doc-type detection on docs w/o chapters, e.g. AML)
+
 _SEC_HITS_RE = re.compile(
     r"^\s*\d{1,3}[A-Z]?\.\s+[A-Z][^\n]{2,90}\s*$", re.MULTILINE
 )
-# Rules/amendments put heading + body on ONE line: "1. Short title and commencement.—(1) ..."
+
 _RULE_RE = re.compile(
     r"^\s*(?P<num>\d{1,3}[A-Z]?)\s*\.\s+(?P<title>[A-Z][^.\u2014\u2013-]{2,90})\s*\.\s*[\u2014\u2013-]"
 )
-# OCR variant (letter-spaced scans): bare "2." line, title on the NEXT line
+
 _BARE_NUM_RE = re.compile(r"^\s*(\d{1,3}[A-Z]?)\s*\.\s*$")
 _TITLE_LINE_RE = re.compile(r"^\s*([A-Z][A-Za-z0-9 ,'&()\-/.]{2,120})\.?\s*$")
 _AMEND_RE = re.compile(r"Amendment of (?:section|sub-section)", re.IGNORECASE)
@@ -162,9 +126,6 @@ _PAGE_NO_RE = re.compile(r"^\s*Page\s+\d+\s+of\s+\d+\s*$", re.IGNORECASE)
 _PURE_NUM_RE = re.compile(r"^\s*-?\d+\s*-?\s*$")
 
 
-# ---------------------------------------------------------------------------
-# 1) PDF extraction from the `data` folder
-# ---------------------------------------------------------------------------
 
 
 def _read_pdf_pages(path: str) -> List[str]:
@@ -191,7 +152,7 @@ def _clean_lines(text: str) -> List[str]:
 
 def _title_from_filename(name: str) -> str:
     stem = os.path.splitext(os.path.basename(name))[0]
-    stem = re.sub(r"\s*\(.*?\)", "", stem)      # strip "(1)UPDATED"
+    stem = re.sub(r"\s*\(.*?\)", "", stem)      
     stem = re.sub(r"[\s_]+", " ", stem).strip()
     return stem
 
@@ -242,7 +203,7 @@ def detect_doc_type(text: str, filename: str) -> str:
     # Gazette S.R.O. notifications / rules / regulations
     if _looks_like_gazette(text) or _RULES_CALLED_RE.search(text):
         return "rules"
-    # Full statutes: PART/CHAPTER headings, or many numbered section headings
+
     if _PART_RE.search(text) or _CHAPTER_RE.search(text):
         return "statute"
     if len(_SEC_HITS_RE.findall(text)) >= 5:
@@ -266,7 +227,7 @@ def extract_documents(data_dir: str = "data") -> List[ExtractedDocument]:
         path = os.path.join(data_dir, name)
         try:
             pages = _read_pdf_pages(path)
-        except Exception as exc:  # AES-encrypted w/o pwd, corrupt, etc.
+        except Exception as exc:  
             print(f"[chunking] SKIP {name}: {exc}", file=sys.stderr)
             continue
         text = "\n".join(pages)
@@ -283,10 +244,6 @@ def extract_documents(data_dir: str = "data") -> List[ExtractedDocument]:
         )
     return docs
 
-
-# ---------------------------------------------------------------------------
-# 2) Structural parsers (one per profile)
-# ---------------------------------------------------------------------------
 
 
 def _iter_statute_blocks(text: str) -> List[Block]:
